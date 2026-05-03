@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>micro:bit 平衡燈模擬器（旋轉感測）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #e8e8e8;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 {
+    text-align: center;
+    color: #ffd166;
+    margin-bottom: 8px;
+    font-size: 28px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 30px;
+    font-size: 14px;
+  }
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 800px) {
+    .main { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .panel h2 {
+    margin: 0 0 16px 0;
+    color: #06d6a0;
+    font-size: 18px;
+    border-bottom: 1px solid rgba(6,214,160,0.3);
+    padding-bottom: 8px;
+  }
+
+  /* micro:bit 板子 */
+  .stage {
+    perspective: 800px;
+    height: 360px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .microbit {
+    width: 280px;
+    height: 220px;
+    background: linear-gradient(145deg, #1a1a1a, #0d0d0d);
+    border-radius: 16px;
+    border: 2px solid #333;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.15s ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    padding: 24px 36px;
+  }
+  .microbit::before, .microbit::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: radial-gradient(circle, #ffd166 30%, #b8860b 70%);
+    border-radius: 50%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .microbit::before { left: -9px; }
+  .microbit::after { right: -9px; }
+  .led-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+  }
+  .led {
+    background: #2a1a0a;
+    border-radius: 2px;
+    border: 1px solid #1a0e05;
+    transition: all 0.12s ease;
+  }
+  .led.on {
+    background: #ff3838;
+    box-shadow:
+      0 0 8px #ff3838,
+      0 0 16px #ff3838,
+      inset 0 0 4px #fff5a8;
+  }
+
+  /* 控制區 */
+  .control-group {
+    margin-bottom: 20px;
+  }
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .control-label .name {
+    color: #06d6a0;
+    font-weight: bold;
+  }
+  .control-label .value {
+    color: #ffd166;
+    font-family: "Consolas", monospace;
+    background: rgba(0,0,0,0.3);
+    padding: 2px 10px;
+    border-radius: 4px;
+    min-width: 60px;
+    text-align: center;
+  }
+  input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #06d6a0;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(6,214,160,0.6);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #06d6a0;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+  button {
+    background: linear-gradient(135deg, #06d6a0, #04a37a);
+    color: #0d1b2a;
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+    transition: transform 0.1s;
+  }
+  button:hover { transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+  button.secondary {
+    background: linear-gradient(135deg, #ffd166, #e0a93f);
+  }
+
+  /* 狀態顯示 */
+  .status {
+    background: rgba(0,0,0,0.3);
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 8px;
+    font-family: "Consolas", monospace;
+    font-size: 13px;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+  .status-row .key { color: #aaa; }
+  .status-row .val { color: #ffd166; }
+
+  /* 邏輯表格 */
+  .logic-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .logic-table th, .logic-table td {
+    padding: 6px 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    text-align: center;
+  }
+  .logic-table th {
+    background: rgba(6,214,160,0.15);
+    color: #06d6a0;
+  }
+  .logic-table tr.active {
+    background: rgba(255,209,102,0.15);
+  }
+  .logic-table tr.active td { color: #ffd166; font-weight: bold; }
+
+  .footer {
+    text-align: center;
+    margin-top: 24px;
+    color: #888;
+    font-size: 12px;
+  }
+  .footer a { color: #06d6a0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎯 micro:bit 平衡燈模擬器</h1>
+  <p class="subtitle">旋轉感測 ( roll / pitch ) 即時控制 5×5 LED 點陣</p>
+
+  <div class="main">
+    <!-- 左側：micro:bit 視覺 -->
+    <div class="panel">
+      <h2>📟 micro:bit 即時模擬</h2>
+      <div class="stage">
+        <div class="microbit" id="microbit">
+          <div class="led-grid" id="ledGrid"></div>
+        </div>
+      </div>
+      <div class="status">
+        <div class="status-row" style="border-bottom:1px dashed rgba(255,255,255,0.1); margin-bottom:4px; padding-bottom:6px;">
+          <span class="key">起始位置</span><span class="val">x=2, y=2（中心）</span>
+        </div>
+        <div class="status-row"><span class="key">roll  ( 左右翻 )</span><span class="val" id="rollVal">0°</span></div>
+        <div class="status-row"><span class="key">pitch ( 前後翻 )</span><span class="val" id="pitchVal">0°</span></div>
+        <div class="status-row"><span class="key">目前 x 座標</span><span class="val" id="xVal">2</span></div>
+        <div class="status-row"><span class="key">目前 y 座標</span><span class="val" id="yVal">2</span></div>
+      </div>
+    </div>
+
+    <!-- 右側：控制 + 邏輯 -->
+    <div class="panel">
+      <h2>🎮 旋轉控制</h2>
+      <div class="control-group">
+        <div class="control-label">
+          <span class="name">roll（左右傾斜）</span>
+          <span class="value" id="rollDisplay">0°</span>
+        </div>
+        <input type="range" id="rollSlider" min="-90" max="90" value="0" step="1">
+      </div>
+      <div class="control-group">
+        <div class="control-label">
+          <span class="name">pitch（前後傾斜）</span>
+          <span class="value" id="pitchDisplay">0°</span>
+        </div>
+        <input type="range" id="pitchSlider" min="-90" max="90" value="0" step="1">
+      </div>
+
+      <div class="btn-row">
+        <button id="btnLR"     data-label="↔ 左右擺動" onclick="sweepLR(this)">↔ 左右擺動</button>
+        <button id="btnUD"     data-label="↕ 上下擺動" onclick="sweepUD(this)">↕ 上下擺動</button>
+        <button id="btnCircle" data-label="⊙ 周圍移動" onclick="sweepCircle(this)">⊙ 周圍移動</button>
+        <button class="secondary" onclick="resetAll()">↺ 回中心</button>
+      </div>
+
+      <h2 style="margin-top: 24px;">📊 判斷邏輯（roll → x）</h2>
+      <table class="logic-table" id="rollTable">
+        <thead><tr><th>roll 範圍</th><th>x 設定</th><th>位置</th></tr></thead>
+        <tbody>
+          <tr data-range="0"><td>&lt; -40</td><td>0</td><td>最左</td></tr>
+          <tr data-range="1"><td>-40 ~ -20</td><td>1</td><td>偏左</td></tr>
+          <tr data-range="2"><td>-20 ~ 20</td><td>2</td><td>置中</td></tr>
+          <tr data-range="3"><td>20 ~ 40</td><td>3</td><td>偏右</td></tr>
+          <tr data-range="4"><td>&gt; 40</td><td>4</td><td>最右</td></tr>
+        </tbody>
+      </table>
+
+      <h2 style="margin-top: 24px;">📊 判斷邏輯（pitch → y）</h2>
+      <table class="logic-table" id="pitchTable">
+        <thead><tr><th>pitch 範圍</th><th>y 設定</th><th>位置</th></tr></thead>
+        <tbody>
+          <tr data-range="0"><td>&lt; -40</td><td>0</td><td>最外</td></tr>
+          <tr data-range="1"><td>-40 ~ -20</td><td>1</td><td>偏外</td></tr>
+          <tr data-range="2"><td>-20 ~ 20</td><td>2</td><td>置中</td></tr>
+          <tr data-range="3"><td>20 ~ 40</td><td>3</td><td>偏內</td></tr>
+          <tr data-range="4"><td>&gt; 40</td><td>4</td><td>最內</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    根據 <a href="https://steam.oxxostudio.tw/category/microbit/example/led-turn-deg.html" target="_blank">STEAM 教育學習網</a> 的「平衡燈（旋轉感測）」教學範例製作
+  </div>
+</div>
+
+<script>
+  // 建立 5x5 LED 點陣
+  const ledGrid = document.getElementById('ledGrid');
+  const leds = [];
+  for (let i = 0; i < 25; i++) {
+    const led = document.createElement('div');
+    led.className = 'led';
+    ledGrid.appendChild(led);
+    leds.push(led);
+  }
+
+  const microbit   = document.getElementById('microbit');
+  const rollSlider = document.getElementById('rollSlider');
+  const pitchSlider= document.getElementById('pitchSlider');
+
+  // ===== 當啟動時：x、y 變數預設為 2（中心點）=====
+  let x = 2;
+  let y = 2;
+
+  // 把 roll 對應到 x（依教學頁五段判斷）
+  function updateX(roll) {
+    if (roll < -40)      x = 0;   // 翻到最左
+    else if (roll < -20) x = 1;   // 往左翻
+    else if (roll <= 20) x = 2;   // 保持中間
+    else if (roll <= 40) x = 3;   // 往右翻
+    else                 x = 4;   // 翻到最右
+  }
+  // 把 pitch 對應到 y
+  function updateY(pitch) {
+    if (pitch < -40)      y = 0;
+    else if (pitch < -20) y = 1;
+    else if (pitch <= 20) y = 2;
+    else if (pitch <= 40) y = 3;
+    else                  y = 4;
+  }
+
+  function rangeIndex(v) {
+    if (v < -40) return 0;
+    if (v < -20) return 1;
+    if (v <= 20) return 2;
+    if (v <= 40) return 3;
+    return 4;
+  }
+
+  function update() {
+    const roll  = parseInt(rollSlider.value);
+    const pitch = parseInt(pitchSlider.value);
+
+    // 重複無限次：依旋轉感測值更新 x、y
+    updateX(roll);
+    updateY(pitch);
+
+    // 清空畫面並點亮 (x, y) 座標的燈
+    leds.forEach(l => l.classList.remove('on'));
+    const idx = y * 5 + x;
+    leds[idx].classList.add('on');
+
+    // 更新 micro:bit 3D 旋轉視覺（roll = Y軸，pitch = X軸）
+    microbit.style.transform =
+      `rotateY(${roll * 0.6}deg) rotateX(${-pitch * 0.6}deg)`;
+
+    // 更新數值顯示
+    document.getElementById('rollDisplay').textContent  = roll + '°';
+    document.getElementById('pitchDisplay').textContent = pitch + '°';
+    document.getElementById('rollVal').textContent  = roll + '°';
+    document.getElementById('pitchVal').textContent = pitch + '°';
+    document.getElementById('xVal').textContent = x;
+    document.getElementById('yVal').textContent = y;
+
+    // 高亮表格中的當前範圍
+    document.querySelectorAll('#rollTable tbody tr').forEach((tr, i) => {
+      tr.classList.toggle('active', i === rangeIndex(roll));
+    });
+    document.querySelectorAll('#pitchTable tbody tr').forEach((tr, i) => {
+      tr.classList.toggle('active', i === rangeIndex(pitch));
+    });
+  }
+
+  rollSlider.addEventListener('input', update);
+  pitchSlider.addEventListener('input', update);
+
+  function resetAll() {
+    stopAnim();
+    rollSlider.value  = 0;
+    pitchSlider.value = 0;
+    update();
+  }
+
+  // ===== 動畫控制：三種模式共用一個 timer =====
+  let animTimer = null;
+  let activeBtn = null;
+
+  function stopAnim() {
+    if (animTimer) { clearInterval(animTimer); animTimer = null; }
+    if (activeBtn) {
+      activeBtn.textContent = activeBtn.dataset.label;
+      activeBtn = null;
+    }
+  }
+
+  function startAnim(btn, tickFn) {
+    if (activeBtn === btn) { stopAnim(); return; }
+    stopAnim();
+    activeBtn = btn;
+    btn.textContent = '⏸ 停止';
+    let t = 0;
+    animTimer = setInterval(() => {
+      tickFn(t);
+      update();
+      t += 1;
+    }, 50);
+  }
+
+  // 模式 1：左右擺動（pitch 鎖 0，roll 用 sin 波）
+  function sweepLR(btn) {
+    startAnim(btn, t => {
+      pitchSlider.value = 0;
+      rollSlider.value  = Math.round(Math.sin(t * 0.08) * 60);
+    });
+  }
+
+  // 模式 2：上下擺動（roll 鎖 0，pitch 用 sin 波）
+  function sweepUD(btn) {
+    startAnim(btn, t => {
+      rollSlider.value  = 0;
+      pitchSlider.value = Math.round(Math.sin(t * 0.08) * 60);
+    });
+  }
+
+  // 模式 3：周圍移動（沿 5x5 外圈 16 格繞行）
+  // 每個目標點對應的 (roll, pitch) 落在該 x,y 區段中央值
+  const perimeterPath = [
+    [-60,-60], [-30,-60], [0,-60], [30,-60], [60,-60],   // 上排 L→R
+    [60,-30],  [60,0],    [60,30],                       // 右排 T→B
+    [60,60],   [30,60],   [0,60],  [-30,60], [-60,60],   // 下排 R→L
+    [-60,30],  [-60,0],   [-60,-30]                      // 左排 B→T
+  ];
+  function sweepCircle(btn) {
+    const segLen = 8;                          // 每段 8 幀 ≈ 400ms
+    const total  = perimeterPath.length * segLen;
+    startAnim(btn, t => {
+      const f      = t % total;
+      const idx    = Math.floor(f / segLen);
+      const frac   = (f % segLen) / segLen;
+      const a = perimeterPath[idx];
+      const b = perimeterPath[(idx + 1) % perimeterPath.length];
+      rollSlider.value  = Math.round(a[0] + (b[0] - a[0]) * frac);
+      pitchSlider.value = Math.round(a[1] + (b[1] - a[1]) * frac);
+    });
+  }
+
+  // 初始化
+  update();
+</script>
+</body>
+</html>
